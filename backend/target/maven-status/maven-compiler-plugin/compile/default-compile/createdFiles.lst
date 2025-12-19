@@ -1,0 +1,5 @@
+com/rdp/rdp/GuacamoleConnectionManager.class
+com/rdp/config/WebSocketConfig.class
+com/rdp/websocket/RdpWebSocketHandler.class
+com/rdp/Application.class
+com/rdp/config/WebSocketConfig$1.class

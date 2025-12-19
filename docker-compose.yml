@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  guacd:
+    image: guacamole/guacd:latest
+    container_name: guacd
+    restart: unless-stopped
+    ports:
+      - "4822:4822"
+    volumes:
+      - guacd-drive:/drive
+      - guacd-record:/record
+    environment:
+      # Set to debug to see detailed connection errors
+      - GUACD_LOG_LEVEL=debug
+
+volumes:
+  guacd-drive:
+  guacd-record:
+
