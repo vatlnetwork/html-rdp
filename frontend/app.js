@@ -19,6 +19,10 @@
   let keyboard = null;
   let mouse = null;
   let isConnected = false;
+  let isFullscreen = false;
+  let originalWidth = null;
+  let originalHeight = null;
+  let resizeTimeout = null;
 
   // DOM Elements
   const elements = {
@@ -27,6 +31,7 @@
     displayContainer: document.getElementById("displayContainer"),
     displayWrapper: document.getElementById("displayWrapper"),
     display: document.getElementById("display"),
+    displayToolbar: document.getElementById("displayToolbar"),
     placeholder: document.getElementById("placeholder"),
     loadingOverlay: document.getElementById("loadingOverlay"),
     statusIndicator: document.getElementById("statusIndicator"),
@@ -34,6 +39,9 @@
     disconnectBtn: document.getElementById("disconnectBtn"),
     panelToggle: document.getElementById("panelToggle"),
     togglePassword: document.getElementById("togglePassword"),
+    fullscreenBtn: document.getElementById("fullscreenBtn"),
+    fitToWindowBtn: document.getElementById("fitToWindowBtn"),
+    actualSizeBtn: document.getElementById("actualSizeBtn"),
     gatewayHostname: document.getElementById("gatewayHostname"),
     gatewayPort: document.getElementById("gatewayPort"),
     hostname: document.getElementById("hostname"),
@@ -66,8 +74,29 @@
     // Password visibility toggle
     elements.togglePassword.addEventListener("click", togglePasswordVisibility);
 
+    // Toolbar buttons
+    elements.fullscreenBtn.addEventListener("click", toggleFullscreen);
+    elements.fitToWindowBtn.addEventListener("click", fitToWindow);
+    elements.actualSizeBtn.addEventListener("click", actualSize);
+
     // Window resize handler
     window.addEventListener("resize", handleResize);
+
+    // Fullscreen change handler (for browser fullscreen API)
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+
+    // Keyboard shortcut for fullscreen (F11)
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "F11" && isConnected) {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+      // Escape to exit fullscreen
+      if (e.key === "Escape" && isFullscreen) {
+        exitFullscreen();
+      }
+    });
 
     // Prevent form elements from capturing keyboard when connected
     elements.connectionForm.addEventListener("keydown", (e) => {
@@ -235,6 +264,7 @@
     isConnected = true;
     showLoading(false);
     elements.placeholder.classList.add("hidden");
+    elements.displayToolbar.classList.remove("hidden");
     updateStatus("connected", "Connected");
     toggleButtons(true);
 
@@ -258,8 +288,18 @@
     isConnected = false;
     showLoading(false);
     elements.placeholder.classList.remove("hidden");
+    elements.displayToolbar.classList.add("hidden");
     updateStatus("disconnected", "Disconnected");
     toggleButtons(false);
+
+    // Exit fullscreen if active
+    if (isFullscreen) {
+      exitFullscreen();
+    }
+
+    // Reset stored resolution
+    originalWidth = null;
+    originalHeight = null;
 
     // Clean up input handlers
     cleanupInputHandlers();
@@ -365,6 +405,24 @@
   function handleResize() {
     if (!guacClient || !isConnected) return;
 
+    // Immediately scale to fit
+    fitToWindow();
+
+    // Debounce resolution updates to avoid spamming the server
+    if (resizeTimeout) {
+      clearTimeout(resizeTimeout);
+    }
+    resizeTimeout = setTimeout(() => {
+      updateDisplayResolution();
+    }, 500);
+  }
+
+  /**
+   * Fit display to available window space
+   */
+  function fitToWindow() {
+    if (!guacClient || !isConnected) return;
+
     const display = guacClient.getDisplay();
     const container = elements.displayWrapper;
 
@@ -378,11 +436,169 @@
     if (displayWidth && displayHeight) {
       const scaleX = containerWidth / displayWidth;
       const scaleY = containerHeight / displayHeight;
-      const scale = Math.min(scaleX, scaleY, 1); // Don't scale up
+      const scale = Math.min(scaleX, scaleY); // Allow scaling up in fullscreen
 
       display.scale(scale);
       centerDisplay();
     }
+  }
+
+  /**
+   * Show display at actual size (1:1 scale)
+   */
+  function actualSize() {
+    if (!guacClient || !isConnected) return;
+
+    const display = guacClient.getDisplay();
+    display.scale(1);
+    centerDisplay();
+  }
+
+  /**
+   * Toggle fullscreen mode
+   */
+  function toggleFullscreen() {
+    if (isFullscreen) {
+      exitFullscreen();
+    } else {
+      enterFullscreen();
+    }
+  }
+
+  /**
+   * Enter fullscreen mode
+   */
+  function enterFullscreen() {
+    const container = elements.displayContainer;
+
+    // Try native browser fullscreen first
+    if (container.requestFullscreen) {
+      container.requestFullscreen();
+    } else if (container.webkitRequestFullscreen) {
+      container.webkitRequestFullscreen();
+    } else if (container.mozRequestFullScreen) {
+      container.mozRequestFullScreen();
+    } else if (container.msRequestFullscreen) {
+      container.msRequestFullscreen();
+    } else {
+      // Fallback to CSS fullscreen
+      applyFullscreenStyles(true);
+    }
+  }
+
+  /**
+   * Exit fullscreen mode
+   */
+  function exitFullscreen() {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    } else {
+      // Fallback CSS fullscreen
+      applyFullscreenStyles(false);
+    }
+  }
+
+  /**
+   * Handle browser fullscreen change event
+   */
+  function handleFullscreenChange() {
+    const isNowFullscreen = !!(
+      document.fullscreenElement || document.webkitFullscreenElement
+    );
+    applyFullscreenStyles(isNowFullscreen);
+  }
+
+  /**
+   * Apply or remove fullscreen styles
+   */
+  function applyFullscreenStyles(fullscreen) {
+    isFullscreen = fullscreen;
+    const container = elements.displayContainer;
+    const enterIcon = elements.fullscreenBtn.querySelector(
+      ".fullscreen-enter-icon"
+    );
+    const exitIcon = elements.fullscreenBtn.querySelector(
+      ".fullscreen-exit-icon"
+    );
+
+    if (fullscreen) {
+      container.classList.add("fullscreen");
+      enterIcon.classList.add("hidden");
+      exitIcon.classList.remove("hidden");
+      elements.fullscreenBtn.classList.add("active");
+    } else {
+      container.classList.remove("fullscreen");
+      enterIcon.classList.remove("hidden");
+      exitIcon.classList.add("hidden");
+      elements.fullscreenBtn.classList.remove("active");
+    }
+
+    // Resize display after a short delay to allow CSS transitions
+    setTimeout(() => {
+      updateDisplayResolution();
+    }, 100);
+  }
+
+  /**
+   * Update the RDP display resolution to match the container size
+   */
+  function updateDisplayResolution() {
+    if (!guacClient || !isConnected) return;
+
+    const display = guacClient.getDisplay();
+    const container = elements.displayWrapper;
+
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    // Store original resolution on first call
+    if (originalWidth === null && display.getWidth()) {
+      originalWidth = display.getWidth();
+      originalHeight = display.getHeight();
+    }
+
+    let targetWidth, targetHeight;
+
+    if (isFullscreen) {
+      // In fullscreen, request the full screen resolution
+      targetWidth = window.screen.width;
+      targetHeight = window.screen.height;
+    } else {
+      // In windowed mode, match the container size
+      targetWidth = containerWidth;
+      targetHeight = containerHeight;
+    }
+
+    // Round to avoid fractional pixels
+    targetWidth = Math.floor(targetWidth);
+    targetHeight = Math.floor(targetHeight);
+
+    // Only send if resolution actually changed
+    const currentWidth = display.getWidth();
+    const currentHeight = display.getHeight();
+
+    if (targetWidth !== currentWidth || targetHeight !== currentHeight) {
+      console.log(
+        "Requesting resolution change:",
+        currentWidth + "x" + currentHeight,
+        "->",
+        targetWidth + "x" + targetHeight
+      );
+      guacClient.sendSize(targetWidth, targetHeight);
+    }
+
+    // Also scale to fit after resize
+    setTimeout(() => {
+      fitToWindow();
+    }, 200);
   }
 
   /**

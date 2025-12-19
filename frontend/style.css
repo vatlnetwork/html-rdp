@@ -387,6 +387,90 @@ body {
   overflow: hidden;
 }
 
+/* Fullscreen mode */
+.display-container.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+}
+
+.display-container.fullscreen .display-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+/* Display Toolbar */
+.display-toolbar {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: rgba(18, 18, 26, 0.9);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  z-index: 100;
+  transition: transform var(--transition-normal), opacity var(--transition-fast);
+}
+
+.display-container.fullscreen .display-toolbar {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%) translateX(calc(100% - 8px));
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-right: none;
+  opacity: 0.3;
+}
+
+.display-container.fullscreen .display-toolbar:hover {
+  transform: translateY(-50%) translateX(0);
+  opacity: 1;
+}
+
+.toolbar-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.toolbar-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.toolbar-btn:active {
+  background: var(--bg-elevated);
+}
+
+.toolbar-btn.active {
+  background: var(--accent-primary);
+  color: #000;
+}
+
+.toolbar-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.toolbar-btn .hidden {
+  display: none;
+}
+
 .display-wrapper {
   width: 100%;
   height: 100%;
