@@ -24,6 +24,32 @@
   let originalHeight = null;
   let resizeTimeout = null;
 
+  // Error log (console + network errors since page load)
+  const errorLog = [];
+  const originalConsoleError = console.error;
+
+  /**
+   * Convert any value to a readable string for the error log (avoids [object Object])
+   */
+  function toLogString(value) {
+    if (value === null) return "null";
+    if (value === undefined) return "undefined";
+    if (typeof value === "string") return value;
+    if (value instanceof Error) {
+      return (
+        (value.message || "Error") + (value.stack ? "\n" + value.stack : "")
+      );
+    }
+    if (typeof value === "object") {
+      try {
+        return JSON.stringify(value);
+      } catch (e) {
+        return Object.prototype.toString.call(value);
+      }
+    }
+    return String(value);
+  }
+
   // DOM Elements
   const elements = {
     connectionForm: document.getElementById("connectionForm"),
@@ -48,12 +74,188 @@
     port: document.getElementById("port"),
     username: document.getElementById("username"),
     password: document.getElementById("password"),
+    errorLogBtn: document.getElementById("errorLogBtn"),
+    errorLogModal: document.getElementById("errorLogModal"),
+    errorLogList: document.getElementById("errorLogList"),
+    errorLogEmpty: document.getElementById("errorLogEmpty"),
+    errorLogClearBtn: document.getElementById("errorLogClearBtn"),
+    errorLogCloseBtn: document.getElementById("errorLogCloseBtn"),
   };
+
+  /**
+   * Add an entry to the error log and update the button state
+   */
+  function addErrorLogEntry(type, message, meta) {
+    const entry = {
+      type: type,
+      message: toLogString(message),
+      meta: meta || {},
+      time: new Date().toISOString(),
+    };
+    errorLog.push(entry);
+    updateErrorLogButton();
+  }
+
+  /**
+   * Update error log button outline (red when there are errors)
+   */
+  function updateErrorLogButton() {
+    if (!elements.errorLogBtn) return;
+    if (errorLog.length > 0) {
+      elements.errorLogBtn.classList.add("has-errors");
+    } else {
+      elements.errorLogBtn.classList.remove("has-errors");
+    }
+  }
+
+  /**
+   * Open the error log modal and render entries
+   */
+  function openErrorLogModal() {
+    if (!elements.errorLogModal) return;
+    elements.errorLogModal.classList.remove("hidden");
+    elements.errorLogModal.setAttribute("aria-hidden", "false");
+    renderErrorLog();
+    elements.errorLogCloseBtn.focus();
+  }
+
+  /**
+   * Close the error log modal
+   */
+  function closeErrorLogModal() {
+    if (!elements.errorLogModal) return;
+    elements.errorLogModal.classList.add("hidden");
+    elements.errorLogModal.setAttribute("aria-hidden", "true");
+  }
+
+  /**
+   * Render error log entries into the list
+   */
+  function renderErrorLog() {
+    const list = elements.errorLogList;
+    const empty = elements.errorLogEmpty;
+    if (!list || !empty) return;
+
+    list.innerHTML = "";
+    if (errorLog.length === 0) {
+      empty.classList.remove("hidden");
+      return;
+    }
+    empty.classList.add("hidden");
+    errorLog.forEach(function (entry) {
+      const li = document.createElement("li");
+      li.textContent = entry.message;
+      if (entry.meta.url || entry.time) {
+        const meta = document.createElement("div");
+        meta.className = "error-meta";
+        const parts = [];
+        if (entry.meta.url) parts.push(entry.meta.url);
+        if (entry.time) parts.push(entry.time);
+        meta.textContent = parts.join(" · ");
+        li.appendChild(meta);
+      }
+      list.appendChild(li);
+    });
+  }
+
+  /**
+   * Clear the error log and update UI
+   */
+  function clearErrorLog() {
+    errorLog.length = 0;
+    updateErrorLogButton();
+    renderErrorLog();
+    if (elements.errorLogEmpty)
+      elements.errorLogEmpty.classList.remove("hidden");
+  }
+
+  /**
+   * Install console.error and network error capture
+   */
+  function initErrorLog() {
+    console.error = function () {
+      const message = Array.prototype.slice
+        .call(arguments)
+        .map(function (a) {
+          return toLogString(a);
+        })
+        .join(" ");
+      addErrorLogEntry("console", message, {});
+      originalConsoleError.apply(console, arguments);
+    };
+
+    const originalFetch = window.fetch;
+    if (typeof originalFetch === "function") {
+      window.fetch = function () {
+        const args = arguments;
+        return originalFetch.apply(this, args).then(
+          function (response) {
+            if (!response.ok) {
+              addErrorLogEntry(
+                "network",
+                "Request failed: " +
+                  response.status +
+                  " " +
+                  response.statusText,
+                { url: response.url },
+              );
+            }
+            return response;
+          },
+          function (err) {
+            const url =
+              typeof args[0] === "string"
+                ? args[0]
+                : (args[0] && args[0].url) || "";
+            addErrorLogEntry("network", err || "Network request failed", {
+              url: url,
+            });
+            throw err;
+          },
+        );
+      };
+    }
+
+    window.addEventListener("error", function (event) {
+      const message =
+        event.message ||
+        (event.error != null ? toLogString(event.error) : null) ||
+        "Unknown error";
+      const meta = {};
+      if (event.filename) meta.url = event.filename;
+      addErrorLogEntry(event.error ? "console" : "resource", message, meta);
+    });
+
+    if (elements.errorLogBtn) {
+      elements.errorLogBtn.addEventListener("click", openErrorLogModal);
+    }
+    if (elements.errorLogCloseBtn) {
+      elements.errorLogCloseBtn.addEventListener("click", closeErrorLogModal);
+    }
+    if (elements.errorLogClearBtn) {
+      elements.errorLogClearBtn.addEventListener("click", clearErrorLog);
+    }
+    if (elements.errorLogModal) {
+      elements.errorLogModal.addEventListener("click", function (e) {
+        if (e.target === elements.errorLogModal) closeErrorLogModal();
+      });
+    }
+    document.addEventListener("keydown", function (e) {
+      if (
+        e.key === "Escape" &&
+        elements.errorLogModal &&
+        !elements.errorLogModal.classList.contains("hidden")
+      ) {
+        closeErrorLogModal();
+      }
+    });
+  }
 
   /**
    * Initialize the application
    */
   function init() {
+    initErrorLog();
     bindEvents();
     updateStatus("disconnected", "Disconnected");
   }
@@ -141,7 +343,7 @@
     hostname,
     port,
     username,
-    password
+    password,
   ) {
     // Show loading state
     showLoading(true);
@@ -166,6 +368,11 @@
 
       // Add tunnel error/state handlers
       tunnel.onerror = function (status) {
+        const detail =
+          status && (status.message != null || status.code != null)
+            ? status.message || String(status.code)
+            : toLogString(status);
+        addErrorLogEntry("network", "Tunnel error: " + detail, {});
         console.error("Tunnel error:", status);
       };
 
@@ -234,8 +441,11 @@
 
     // Error handler
     guacClient.onerror = function (error) {
+      const msg =
+        error.message || (typeof error === "string" ? error : "Unknown error");
+      addErrorLogEntry("network", "Connection error: " + msg, {});
       console.error("Guacamole error:", error);
-      showError("Connection error: " + (error.message || "Unknown error"));
+      showError("Connection error: " + msg);
     };
 
     // Audio support
@@ -348,7 +558,7 @@
               mouseState.middle,
               mouseState.right,
               mouseState.up,
-              mouseState.down
+              mouseState.down,
             );
 
             guacClient.sendMouseState(scaledState);
@@ -523,10 +733,10 @@
     isFullscreen = fullscreen;
     const container = elements.displayContainer;
     const enterIcon = elements.fullscreenBtn.querySelector(
-      ".fullscreen-enter-icon"
+      ".fullscreen-enter-icon",
     );
     const exitIcon = elements.fullscreenBtn.querySelector(
-      ".fullscreen-exit-icon"
+      ".fullscreen-exit-icon",
     );
 
     if (fullscreen) {
@@ -590,7 +800,7 @@
         "Requesting resolution change:",
         currentWidth + "x" + currentHeight,
         "->",
-        targetWidth + "x" + targetHeight
+        targetWidth + "x" + targetHeight,
       );
       guacClient.sendSize(targetWidth, targetHeight);
     }

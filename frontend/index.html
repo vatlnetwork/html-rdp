@@ -183,6 +183,31 @@
               <span>Disconnect</span>
             </button>
           </div>
+
+          <div class="form-actions form-actions-secondary">
+            <button
+              type="button"
+              class="btn-error-log"
+              id="errorLogBtn"
+              title="View error log"
+              aria-label="View error log"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                ></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="12" y1="18" x2="12" y2="12"></line>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+              </svg>
+              <span>Error log</span>
+            </button>
+          </div>
         </form>
 
         <div class="status-section">
@@ -295,6 +320,51 @@
           <p>Establishing connection...</p>
         </div>
       </main>
+    </div>
+
+    <!-- Error log modal -->
+    <div class="modal-overlay hidden" id="errorLogModal" aria-hidden="true">
+      <div
+        class="modal"
+        role="dialog"
+        aria-labelledby="errorLogModalTitle"
+        aria-modal="true"
+      >
+        <div class="modal-header">
+          <h2 id="errorLogModalTitle">Error log</h2>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn-modal-secondary"
+              id="errorLogClearBtn"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              class="btn-modal-close"
+              id="errorLogCloseBtn"
+              aria-label="Close"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="modal-body">
+          <div class="error-log-empty hidden" id="errorLogEmpty">
+            No errors recorded.
+          </div>
+          <ul class="error-log-list" id="errorLogList"></ul>
+        </div>
+      </div>
     </div>
 
     <!-- Guacamole JS Library (Apache Guacamole Client) -->
