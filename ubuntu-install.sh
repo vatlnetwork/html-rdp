@@ -16,7 +16,7 @@ sudo apt install maven -y
 sudo apt install net-tools -y
 clear
 ifconfig
-read -p "Please copy down the IP above. Press enter when you are ready to continue."
+read -p "Please copy down the IP above. Press enter when you are ready to continue.\n"
 
 # compile & start the backend
 cd backend
