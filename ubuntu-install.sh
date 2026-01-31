@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# exit on any error
+set -e
+
 # install docker
 curl -fsSL https://get.docker.com | sh
 sudo apt install uidmap -y
@@ -16,7 +19,7 @@ sudo apt install maven -y
 sudo apt install net-tools -y
 clear
 ifconfig
-read -p "Please copy down the IP above. Press enter when you are ready to continue.\n"
+read -p "Please copy down the IP above. Press enter when you are ready to continue."
 
 # compile & start the backend
 cd backend
